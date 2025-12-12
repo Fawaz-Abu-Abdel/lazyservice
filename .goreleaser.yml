@@ -1,0 +1,119 @@
+project_name: lazyservice
+
+before:
+  hooks:
+    - go mod tidy
+    - go generate ./...
+
+builds:
+  - id: lazyservice
+    main: ./cmd/lazyservice
+    binary: lazyservice
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+      - 386
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+
+archives:
+  - id: lazyservice
+    format: tar.gz
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - README.md
+      - LICENSE
+      - CHANGELOG.md
+
+checksum:
+  name_template: 'checksums.txt'
+
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^ci:'
+      - '^chore:'
+      - '^style:'
+      - '^refactor:'
+
+release:
+  github:
+    owner: lazyservice
+    name: lazyservice
+  draft: false
+  prerelease: auto
+  name_template: "{{.ProjectName}} v{{.Version}}"
+  header: |
+    ## LazyService {{.Tag}}
+    
+    A powerful TUI dashboard for monitoring services across Docker, Kubernetes, Systemd, and processes.
+    
+    ### What's Changed
+  footer: |
+    **Full Changelog**: https://github.com/lazyservice/lazyservice/compare/{{ .PreviousTag }}...{{ .Tag }}
+
+brews:
+  - name: lazyservice
+    repository:
+      owner: lazyservice
+      name: homebrew-tap
+    homepage: https://github.com/lazyservice/lazyservice
+    description: "A powerful TUI dashboard for monitoring services"
+    license: MIT
+    test: |
+      system "#{bin}/lazyservice --version"
+
+nfpms:
+  - id: lazyservice
+    package_name: lazyservice
+    vendor: LazyService
+    homepage: https://github.com/lazyservice/lazyservice
+    maintainer: LazyService Team <team@lazyservice.dev>
+    description: "A powerful TUI dashboard for monitoring services"
+    license: MIT
+    formats:
+      - deb
+      - rpm
+      - apk
+    bindir: /usr/bin
+    contents:
+      - src: ./README.md
+        dst: /usr/share/doc/lazyservice/README.md
+      - src: ./LICENSE
+        dst: /usr/share/doc/lazyservice/LICENSE
+
+dockers:
+  - image_templates:
+      - "lazyservice/lazyservice:latest"
+      - "lazyservice/lazyservice:{{ .Tag }}"
+      - "lazyservice/lazyservice:v{{ .Major }}"
+    dockerfile: Dockerfile
+    build_flag_templates:
+      - --label=org.opencontainers.image.title={{ .ProjectName }}
+      - --label=org.opencontainers.image.description=A powerful TUI dashboard for monitoring services
+      - --label=org.opencontainers.image.url=https://github.com/lazyservice/lazyservice
+      - --label=org.opencontainers.image.source=https://github.com/lazyservice/lazyservice
+      - --label=org.opencontainers.image.version={{ .Version }}
+      - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
+      - --label=org.opencontainers.image.revision={{ .FullCommit }}
+      - --label=org.opencontainers.image.licenses=MIT

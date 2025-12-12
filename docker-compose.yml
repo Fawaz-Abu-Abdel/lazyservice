@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  lazyservice:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: lazyservice
+    restart: unless-stopped
+    volumes:
+      # Mount Docker socket for Docker container monitoring
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Mount kubectl config for Kubernetes monitoring
+      - ~/.kube:/home/lazyservice/.kube:ro
+      # Mount logs directory
+      - ./logs:/app/logs
+      # Mount config directory
+      - ./config:/app/config
+    environment:
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - KUBECONFIG=/home/lazyservice/.kube/config
+    # For TUI applications, you might want to run interactively
+    stdin_open: true
+    tty: true
+    networks:
+      - lazyservice-network
+
+  # Example services for testing LazyService monitoring
+  nginx-test:
+    image: nginx:alpine
+    container_name: nginx-test
+    ports:
+      - "8080:80"
+    environment:
+      - NGINX_HOST=localhost
+      - NGINX_PORT=80
+    networks:
+      - lazyservice-network
+
+  redis-test:
+    image: redis:alpine
+    container_name: redis-test
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    networks:
+      - lazyservice-network
+
+  postgres-test:
+    image: postgres:alpine
+    container_name: postgres-test
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=testdb
+      - POSTGRES_USER=testuser
+      - POSTGRES_PASSWORD=testpass
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - lazyservice-network
+
+volumes:
+  redis-data:
+  postgres-data:
+
+networks:
+  lazyservice-network:
+    driver: bridge
