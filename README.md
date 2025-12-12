@@ -205,4 +205,3 @@ For questions, suggestions, or issues, please open an issue on GitHub.
 
 ---
 
-Made with ❤️ by developers, for developers
