@@ -2,11 +2,14 @@ module github.com/lazyservice/lazyservice
 
 go 1.24.0
 
+toolchain go1.24.3
+
 require (
 	github.com/docker/docker v24.0.7+incompatible
 	github.com/gdamore/tcell/v2 v2.6.0
 	github.com/rivo/tview v0.0.0-20231126152417-33a1d271f2b6
 	github.com/shirou/gopsutil/v3 v3.23.11
+	golang.org/x/term v0.5.0
 )
 
 replace github.com/docker/distribution => github.com/docker/distribution v2.8.2+incompatible
@@ -34,7 +37,6 @@ require (
 	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.3 // indirect
 	golang.org/x/sys v0.15.0 // indirect
-	golang.org/x/term v0.5.0 // indirect
 	golang.org/x/text v0.7.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
 	gotest.tools/v3 v3.5.2 // indirect

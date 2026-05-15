@@ -43,6 +43,12 @@ type ModernDashboard struct {
 	currentView     string
 	animationFrame  int
 	lastRefresh     time.Time
+
+	// Last rendered caches (for content-only updates)
+	lastDetailsText string
+	lastMetricsText string
+	lastStatsText   string
+	lastLogsText    string
 	
 	// Border-safe mode
 	bordersLocked   bool
@@ -247,12 +253,21 @@ func (d *ModernDashboard) loadInitialData() {
 	}
 }
 
+// updateTableCell updates a table cell only if the text has changed
+func (d *ModernDashboard) updateTableCell(row, col int, text string, align int) {
+	cell := d.serviceList.GetCell(row, col)
+	if cell.Text != text {
+		cell.SetText(text)
+		cell.SetAlign(align)
+	}
+}
+
 // updateServiceTable updates the beautiful service table (content-only, no border changes)
 func (d *ModernDashboard) updateServiceTable() {
 	// Remove duplicate services first
 	uniqueServices := d.removeDuplicateServices(d.services)
 	d.services = uniqueServices
-	
+
 	// Clear existing rows only if service count changed to avoid unnecessary border updates
 	currentRowCount := d.serviceList.GetRowCount() - 1 // Exclude header
 	if currentRowCount != len(d.services) {
@@ -261,37 +276,33 @@ func (d *ModernDashboard) updateServiceTable() {
 			d.serviceList.RemoveRow(row)
 		}
 	}
-	
+
 	// Update or add service rows
 	for i, service := range d.services {
 		row := i + 1
-		
+
 		// Status with icon
 		statusIcon := StatusIcon(string(service.Status), d.theme)
-		statusCell := tview.NewTableCell(statusIcon + " " + string(service.Status))
-		statusCell.SetAlign(tview.AlignCenter)
-		
+		d.updateTableCell(row, 0, statusIcon+" "+string(service.Status), tview.AlignCenter)
+
 		// Service name with emoji
 		nameIcon := d.getServiceIcon(service.Type)
-		nameCell := tview.NewTableCell(fmt.Sprintf("%s %s", nameIcon, service.Name))
-		
+		d.updateTableCell(row, 1, fmt.Sprintf("%s %s", nameIcon, service.Name), tview.AlignLeft)
+
 		// Type with color
-		typeCell := tview.NewTableCell(fmt.Sprintf("[#a6adc8]%s[white]", service.Type))
-		typeCell.SetAlign(tview.AlignCenter)
-		
+		d.updateTableCell(row, 2, fmt.Sprintf("[#a6adc8]%s[white]", service.Type), tview.AlignCenter)
+
 		// Uptime
 		uptime := time.Since(service.CreatedAt)
-		uptimeCell := tview.NewTableCell(components.FormatDuration(int64(uptime.Seconds())))
-		uptimeCell.SetAlign(tview.AlignCenter)
-		
-		// CPU with progress bar - ensure we show actual data
+		d.updateTableCell(row, 3, components.FormatDuration(int64(uptime.Seconds())), tview.AlignCenter)
+
+		// CPU with progress bar
 		cpuPercent := 0.0
 		cpuText := "0.0%"
 		if service.Metrics != nil && service.Metrics.CPUPercent > 0 {
 			cpuPercent = service.Metrics.CPUPercent
 			cpuText = fmt.Sprintf("%.1f%%", cpuPercent)
 		} else if service.Statistics != nil {
-			// Fallback to statistics if metrics not available
 			avgCPU := service.Statistics.GetAverageCPU(5 * time.Minute)
 			if avgCPU > 0 {
 				cpuPercent = avgCPU
@@ -299,35 +310,25 @@ func (d *ModernDashboard) updateServiceTable() {
 			}
 		}
 		cpuBar := ProgressBar(cpuPercent, 6, "green")
-		cpuCell := tview.NewTableCell(fmt.Sprintf("%s %s", cpuText, cpuBar))
-		
+		d.updateTableCell(row, 4, fmt.Sprintf("%s %s", cpuText, cpuBar), tview.AlignLeft)
+
 		// Memory with progress bar
 		memPercent := 0.0
 		if service.Metrics != nil {
 			memPercent = service.Metrics.MemoryPercent
 		}
 		memBar := ProgressBar(memPercent, 8, "blue")
-		memCell := tview.NewTableCell(fmt.Sprintf("%.1f%% %s", memPercent, memBar))
-		
-		// Network with sparkline
+		d.updateTableCell(row, 5, fmt.Sprintf("%.1f%% %s", memPercent, memBar), tview.AlignLeft)
+
+		// Network
 		networkText := "0 B/s"
 		if service.Metrics != nil {
 			total := service.Metrics.NetworkIn + service.Metrics.NetworkOut
 			networkText = components.FormatBytes(total) + "/s"
 		}
-		networkCell := tview.NewTableCell(networkText)
-		networkCell.SetAlign(tview.AlignCenter)
-		
-		// Set all cells
-		d.serviceList.SetCell(row, 0, statusCell)
-		d.serviceList.SetCell(row, 1, nameCell)
-		d.serviceList.SetCell(row, 2, typeCell)
-		d.serviceList.SetCell(row, 3, uptimeCell)
-		d.serviceList.SetCell(row, 4, cpuCell)
-		d.serviceList.SetCell(row, 5, memCell)
-		d.serviceList.SetCell(row, 6, networkCell)
+		d.updateTableCell(row, 6, networkText, tview.AlignCenter)
 	}
-	
+
 	// Update service count in title
 	d.serviceList.SetTitle(fmt.Sprintf(" 🚀 Services (%d) ", len(d.services)))
 }
@@ -373,14 +374,14 @@ func (d *ModernDashboard) updateDetailPanels() {
 // updateServiceDetails creates beautiful service details
 func (d *ModernDashboard) updateServiceDetails(service *app.Service) {
 	var details strings.Builder
-	
+
 	details.WriteString("\n")
 	details.WriteString(fmt.Sprintf(" [#cba6f7]╭─ Service Information ─╮[white]\n"))
 	details.WriteString(fmt.Sprintf(" [#89b4fa]│[white] [#f9e2af]Name:[white]      %s\n", service.Name))
 	details.WriteString(fmt.Sprintf(" [#89b4fa]│[white] [#f9e2af]Type:[white]      %s %s\n", d.getServiceIcon(service.Type), service.Type))
 	details.WriteString(fmt.Sprintf(" [#89b4fa]│[white] [#f9e2af]Status:[white]    %s %s\n", StatusIcon(string(service.Status), d.theme), service.Status))
 	details.WriteString(fmt.Sprintf(" [#89b4fa]│[white] [#f9e2af]ID:[white]        %s\n", service.ID))
-	
+
 	if service.Image != "" {
 		details.WriteString(fmt.Sprintf(" [#89b4fa]│[white] [#f9e2af]Image:[white]     %s\n", service.Image))
 	}
@@ -390,42 +391,50 @@ func (d *ModernDashboard) updateServiceDetails(service *app.Service) {
 	if len(service.Ports) > 0 {
 		details.WriteString(fmt.Sprintf(" [#89b4fa]│[white] [#f9e2af]Ports:[white]     %s\n", strings.Join(service.Ports, ", ")))
 	}
-	
+
 	details.WriteString(fmt.Sprintf(" [#cba6f7]╰─────────────────────────╯[white]\n\n"))
-	
+
 	// Runtime information
 	details.WriteString(fmt.Sprintf(" [#cba6f7]╭─ Runtime Information ─╮[white]\n"))
 	details.WriteString(fmt.Sprintf(" [#89b4fa]│[white] [#f9e2af]Created:[white]   %s\n", service.CreatedAt.Format("2006-01-02 15:04:05")))
-	
+
 	uptime := time.Since(service.CreatedAt)
 	details.WriteString(fmt.Sprintf(" [#89b4fa]│[white] [#f9e2af]Uptime:[white]    %s\n", components.FormatDuration(int64(uptime.Seconds()))))
-	
+
 	if service.HealthCheck != "" {
 		details.WriteString(fmt.Sprintf(" [#89b4fa]│[white] [#f9e2af]Health:[white]    %s\n", service.HealthCheck))
 	}
-	
+
 	details.WriteString(fmt.Sprintf(" [#cba6f7]╰─────────────────────────╯[white]\n"))
-	
-	d.detailsView.SetText(details.String())
+
+	newDetails := details.String()
+	if d.lastDetailsText != newDetails {
+		d.detailsView.SetText(newDetails)
+		d.lastDetailsText = newDetails
+	}
 }
 
 // updateLiveMetrics creates beautiful live metrics display
 func (d *ModernDashboard) updateLiveMetrics(service *app.Service) {
 	if service.Metrics == nil {
-		d.metricsView.SetText("\n [#a6adc8]📊 Collecting metrics...[white]\n\n [#585b70]" + AnimatedSpinner(d.animationFrame) + " Please wait[white]")
+		noMetrics := "\n [#a6adc8]📊 Collecting metrics...[white]\n\n [#585b70]" + AnimatedSpinner(d.animationFrame) + " Please wait[white]"
+		if d.lastMetricsText != noMetrics {
+			d.metricsView.SetText(noMetrics)
+			d.lastMetricsText = noMetrics
+		}
 		return
 	}
-	
+
 	metrics := service.Metrics
 	var output strings.Builder
-	
+
 	output.WriteString("\n")
 	output.WriteString(" [#cba6f7]╭─ Live Performance ─╮[white]\n")
-	
+
 	// CPU with beautiful progress bar
 	cpuBar := ProgressBar(metrics.CPUPercent, 20, "green")
 	output.WriteString(fmt.Sprintf(" [#89b4fa]│[white] [#f9e2af]CPU:[white]     %5.1f%% %s\n", metrics.CPUPercent, cpuBar))
-	
+
 	// Memory with progress bar
 	if metrics.MemoryLimit > 0 {
 		memBar := ProgressBar(metrics.MemoryPercent, 20, "blue")
@@ -434,42 +443,49 @@ func (d *ModernDashboard) updateLiveMetrics(service *app.Service) {
 			components.FormatBytes(metrics.MemoryUsage),
 			components.FormatBytes(metrics.MemoryLimit)))
 	}
-	
+
 	// Network with icons
 	if metrics.NetworkIn > 0 || metrics.NetworkOut > 0 {
 		output.WriteString(fmt.Sprintf(" [#89b4fa]│[white] [#f9e2af]Network:[white] [#a6e3a1]↓[white] %s  [#f38ba8]↑[white] %s\n",
 			components.FormatBytes(metrics.NetworkIn),
 			components.FormatBytes(metrics.NetworkOut)))
 	}
-	
+
 	// Disk I/O
 	if metrics.DiskIORead > 0 || metrics.DiskIOWrite > 0 {
 		output.WriteString(fmt.Sprintf(" [#89b4fa]│[white] [#f9e2af]Disk I/O:[white] [#a6e3a1]R:[white] %s  [#f38ba8]W:[white] %s\n",
 			components.FormatBytes(metrics.DiskIORead),
 			components.FormatBytes(metrics.DiskIOWrite)))
 	}
-	
+
 	// Uptime
 	if metrics.Uptime > 0 {
 		output.WriteString(fmt.Sprintf(" [#89b4fa]│[white] [#f9e2af]Uptime:[white]  %s\n",
 			components.FormatDuration(int64(metrics.Uptime.Seconds()))))
 	}
-	
+
 	output.WriteString(" [#cba6f7]╰─────────────────────────╯[white]\n")
-	
-	d.metricsView.SetText(output.String())
+
+	newMetrics := output.String()
+	if d.lastMetricsText != newMetrics {
+		d.metricsView.SetText(newMetrics)
+		d.lastMetricsText = newMetrics
+	}
 }
 
 // updateStatisticsPanel creates beautiful statistics display
 func (d *ModernDashboard) updateStatisticsPanel(service *app.Service) {
 	statsText := FormatStatistics(service)
-	d.statisticsView.SetText(statsText)
+	if d.lastStatsText != statsText {
+		d.statisticsView.SetText(statsText)
+		d.lastStatsText = statsText
+	}
 }
 
 // updateLogsPanel creates a beautiful logs display
 func (d *ModernDashboard) updateLogsPanel(service *app.Service) {
 	var logs strings.Builder
-	
+
 	logs.WriteString("\n")
 	logs.WriteString(" [#cba6f7]╭─ Recent Activity ─╮[white]\n")
 	logs.WriteString(" [#89b4fa]│[white] [#a6adc8]" + time.Now().Format("15:04:05") + "[white] Service started\n")
@@ -477,8 +493,12 @@ func (d *ModernDashboard) updateLogsPanel(service *app.Service) {
 	logs.WriteString(" [#89b4fa]│[white] [#a6adc8]" + time.Now().Add(-60*time.Second).Format("15:04:05") + "[white] Health check passed\n")
 	logs.WriteString(" [#cba6f7]╰─────────────────────╯[white]\n\n")
 	logs.WriteString(" [#585b70]💡 Real-time logs coming soon...[white]")
-	
-	d.logsView.SetText(logs.String())
+
+	newLogs := logs.String()
+	if d.lastLogsText != newLogs {
+		d.logsView.SetText(newLogs)
+		d.lastLogsText = newLogs
+	}
 }
 
 // showEmptyState shows a beautiful empty state

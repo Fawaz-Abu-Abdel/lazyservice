@@ -63,11 +63,14 @@ func NewProDashboard(application *app.App) *ProDashboard {
 func (d *ProDashboard) Run() error {
 	// Step 1: Create borders ONCE - they will NEVER be touched again
 	d.createBordersOnce()
-	
-	// Step 2: Load initial content into regions
+
+	// Step 2: Load services before initial content update
+	d.services = d.app.GetServices()
+
+	// Step 3: Load initial content into regions
 	d.loadInitialContent()
-	
-	// Step 3: Start content-only background updates
+
+	// Step 4: Start content-only background updates
 	go d.contentOnlyUpdateLoop()
 	
 	// Step 4: Setup keyboard handling
@@ -93,13 +96,11 @@ func (d *ProDashboard) createBordersOnce() {
 	// Header panel - created once
 	d.headerPanel = tview.NewTextView().
 		SetDynamicColors(true).
-		SetTextAlign(tview.AlignCenter).
-		SetRegions(true)
-	
-	// Service list panel - created once with regions
+		SetTextAlign(tview.AlignCenter)
+
+	// Service list panel - created once
 	d.servicePanel = tview.NewTextView().
 		SetDynamicColors(true).
-		SetRegions(true).
 		SetScrollable(true).
 		SetWordWrap(false)
 	d.servicePanel.SetBorder(true).
@@ -107,37 +108,10 @@ func (d *ProDashboard) createBordersOnce() {
 		SetBorderColor(tcell.NewRGBColor(137, 180, 250)).
 		SetTitleColor(tcell.NewRGBColor(203, 166, 247)).
 		SetBorderPadding(0, 0, 1, 1)
-	
-	// Enable mouse support for service selection (click only, no hover to avoid redraws)
-	d.servicePanel.SetMouseCapture(func(action tview.MouseAction, event *tcell.EventMouse) (tview.MouseAction, *tcell.EventMouse) {
-		if action == tview.MouseLeftClick {
-			_, y := event.Position()
-			// Get the relative position within the panel (accounting for border)
-			_, _, _, panelY := d.servicePanel.GetInnerRect()
-			relativeY := y - panelY - 1 // Subtract panel position and border
-			
-			// Calculate which service is at this position (each service takes 4 lines: name, details, metrics, blank)
-			serviceIndex := relativeY / 4
-			
-			// Select service on click
-			if serviceIndex >= 0 && serviceIndex < len(d.services) {
-				d.selectedIndex = serviceIndex
-				d.hoverIndex = -1 // Clear hover
-				d.updateServiceListContent()
-				d.updateDetailsContent()
-				d.updateMetricsContent()
-				d.updateStatsContent()
-			}
-			return action, nil
-		}
-		
-		return action, event
-	})
-	
-	// Details panel - created once with regions
+
+	// Details panel - created once
 	d.detailsPanel = tview.NewTextView().
 		SetDynamicColors(true).
-		SetRegions(true).
 		SetScrollable(true).
 		SetWordWrap(true)
 	d.detailsPanel.SetBorder(true).
@@ -145,11 +119,10 @@ func (d *ProDashboard) createBordersOnce() {
 		SetBorderColor(tcell.NewRGBColor(137, 180, 250)).
 		SetTitleColor(tcell.NewRGBColor(249, 226, 175)).
 		SetBorderPadding(0, 0, 1, 1)
-	
-	// Metrics panel - created once with regions
+
+	// Metrics panel - created once
 	d.metricsPanel = tview.NewTextView().
 		SetDynamicColors(true).
-		SetRegions(true).
 		SetScrollable(false).
 		SetWordWrap(false)
 	d.metricsPanel.SetBorder(true).
@@ -157,11 +130,10 @@ func (d *ProDashboard) createBordersOnce() {
 		SetBorderColor(tcell.NewRGBColor(137, 180, 250)).
 		SetTitleColor(tcell.NewRGBColor(166, 227, 161)).
 		SetBorderPadding(0, 0, 1, 1)
-	
-	// Statistics panel - created once with regions
+
+	// Statistics panel - created once
 	d.statsPanel = tview.NewTextView().
 		SetDynamicColors(true).
-		SetRegions(true).
 		SetScrollable(true).
 		SetWordWrap(false)
 	d.statsPanel.SetBorder(true).
@@ -170,10 +142,9 @@ func (d *ProDashboard) createBordersOnce() {
 		SetTitleColor(tcell.NewRGBColor(245, 194, 231)).
 		SetBorderPadding(0, 0, 1, 1)
 	
-	// Footer panel - created once with regions
+	// Footer panel - created once
 	d.footerPanel = tview.NewTextView().
 		SetDynamicColors(true).
-		SetRegions(true).
 		SetTextAlign(tview.AlignCenter)
 	
 	// Create layout - assembled once, never modified
@@ -231,7 +202,9 @@ func (d *ProDashboard) updateHeaderContent() {
 		len(d.services),
 		time.Now().Format("15:04:05 Mon Jan 2"),
 	)
-	d.headerPanel.SetText(header)
+	if d.headerPanel.GetText(false) != header {
+		d.headerPanel.SetText(header)
+	}
 }
 
 // updateFooterContent updates ONLY the footer text, never the structure
@@ -271,10 +244,7 @@ func (d *ProDashboard) updateServiceListContent() {
 
 		// First line (name/type) with background per state
 		if i == d.selectedIndex {
-			content.WriteString(fmt.Sprintf("%s[white:#313244:b]%s %s %-23s [#585b70:#313244:]%-10s[white::]\n",
-				indicator, statusIcon, typeIcon, name, service.Type))
-		} else if i == d.hoverIndex {
-			content.WriteString(fmt.Sprintf("%s[#cdd6f4:#1e1e2e:]%s %s %-23s [#585b70:#1e1e2e:]%-10s[white::]\n",
+			content.WriteString(fmt.Sprintf("%s[white:#313244:b]%s %s %-23s [#585b70:#313244:]%-10s[white:#313244:]\n",
 				indicator, statusIcon, typeIcon, name, service.Type))
 		} else {
 			content.WriteString(fmt.Sprintf("%s%s %s [#cdd6f4]%-23s[white] [#585b70]%-10s[white]\n",
@@ -285,8 +255,6 @@ func (d *ProDashboard) updateServiceListContent() {
 		bgTag := ""
 		if i == d.selectedIndex {
 			bgTag = ":#313244"
-		} else if i == d.hoverIndex {
-			bgTag = ":#1e1e2e"
 		}
 
 		// Ports or uptime
@@ -295,27 +263,27 @@ func (d *ProDashboard) updateServiceListContent() {
 			if len(portStr) > 30 {
 				portStr = portStr[:27] + "..."
 			}
-			content.WriteString(fmt.Sprintf("      [#585b70%s:]↳[white%s:] [#fab387%s:]:%s[white::]\n",
-				bgTag, bgTag, bgTag, portStr))
+			content.WriteString(fmt.Sprintf("      [#585b70%s:]↳[white%s:] [#fab387%s:]:%s[white%s:]\n",
+				bgTag, bgTag, bgTag, portStr, bgTag))
 		} else {
 			uptime := time.Since(service.CreatedAt)
-			content.WriteString(fmt.Sprintf("      [#585b70%s:]↳ up:[white%s:] [#a6adc8%s:]%s[white::]\n",
-				bgTag, bgTag, bgTag, components.FormatDuration(int64(uptime.Seconds()))))
+			content.WriteString(fmt.Sprintf("      [#585b70%s:]↳ up:[white%s:] [#a6adc8%s:]%s[white%s:]\n",
+				bgTag, bgTag, bgTag, components.FormatDuration(int64(uptime.Seconds())), bgTag))
 		}
 
 		// Compact metrics
 		if service.Metrics != nil {
 			cpuBar := d.compactProgressBar(service.Metrics.CPUPercent, 8)
 			memBar := d.compactProgressBar(service.Metrics.MemoryPercent, 8)
-			content.WriteString(fmt.Sprintf("      [#585b70%s:]cpu[white::]%s [#585b70%s:]mem[white::]%s\n",
-				bgTag, cpuBar, bgTag, memBar))
+			content.WriteString(fmt.Sprintf("      [#585b70%s:]cpu[white%s:]%s [#585b70%s:]mem[white%s:]%s\n",
+				bgTag, bgTag, cpuBar, bgTag, bgTag, memBar))
 		}
 
 		if i < len(d.services)-1 {
 			content.WriteString("\n")
 		}
 	}
-	
+
 	// Update content ONLY - border never touched (only when changed)
 	slt := content.String()
 	if slt != d.lastServiceListText {
@@ -326,57 +294,57 @@ func (d *ProDashboard) updateServiceListContent() {
 
 // updateDetailsContent updates ONLY details content, never borders (cached)
 func (d *ProDashboard) updateDetailsContent() {
-    if d.selectedIndex >= len(d.services) || len(d.services) == 0 {
-        txt := "\n  [#585b70::i]No service selected[white]"
-        if txt != d.lastDetailsText {
-            d.detailsPanel.SetText(txt)
-            d.lastDetailsText = txt
-        }
-        return
-    }
+	if d.selectedIndex >= len(d.services) || len(d.services) == 0 {
+		txt := "\n  [#585b70::i]No service selected[white]"
+		if txt != d.lastDetailsText {
+			d.detailsPanel.SetText(txt)
+			d.lastDetailsText = txt
+		}
+		return
+	}
 
-    service := d.services[d.selectedIndex]
-    var details strings.Builder
-    details.WriteString("\n")
+	service := d.services[d.selectedIndex]
+	var details strings.Builder
+	details.WriteString("\n")
 
-    // Service information box
-    details.WriteString(" [#cba6f7]╭─ Service Information ────────────╮[white]\n")
-    details.WriteString(fmt.Sprintf(" [#cba6f7]│[white] [#f9e2af::b]%-15s[::-][white] [#cdd6f4]%s[white]\n", "Name", service.Name))
-    details.WriteString(fmt.Sprintf(" [#cba6f7]│[white] [#f9e2af::b]%-15s[::-][white] [#89b4fa]%s[white] %s\n", "Type", service.Type, d.getServiceTypeIcon(service.Type)))
-    details.WriteString(fmt.Sprintf(" [#cba6f7]│[white] [#f9e2af::b]%-15s[::-][white] %s %s\n", "Status", d.getStatusIcon(service.Status), service.Status))
-    details.WriteString(fmt.Sprintf(" [#cba6f7]│[white] [#f9e2af::b]%-15s[::-][white] [#585b70]%s[white]\n", "ID", truncate(service.ID, 20)))
+	// Service information box
+	details.WriteString(" [#cba6f7]╭─ Service Information ────────────╮[white]\n")
+	details.WriteString(fmt.Sprintf(" [#cba6f7]│[white] [#f9e2af::b]%-15s[::-][white] [#cdd6f4]%s[white]\n", "Name", service.Name))
+	details.WriteString(fmt.Sprintf(" [#cba6f7]│[white] [#f9e2af::b]%-15s[::-][white] [#89b4fa]%s[white] %s\n", "Type", service.Type, d.getServiceTypeIcon(service.Type)))
+	details.WriteString(fmt.Sprintf(" [#cba6f7]│[white] [#f9e2af::b]%-15s[::-][white] %s %s\n", "Status", d.getStatusIcon(service.Status), service.Status))
+	details.WriteString(fmt.Sprintf(" [#cba6f7]│[white] [#f9e2af::b]%-15s[::-][white] [#585b70]%s[white]\n", "ID", truncate(service.ID, 20)))
 
-    if service.Image != "" {
-        details.WriteString(fmt.Sprintf(" [#cba6f7]│[white] [#f9e2af::b]%-15s[::-][white] [#a6adc8]%s[white]\n", "Image", truncate(service.Image, 20)))
-    }
-    if service.Version != "" {
-        details.WriteString(fmt.Sprintf(" [#cba6f7]│[white] [#f9e2af::b]%-15s[::-][white] [#89b4fa]%s[white]\n", "Version", service.Version))
-    }
-    if len(service.Ports) > 0 {
-        portStr := strings.Join(service.Ports, ", ")
-        if len(portStr) > 25 {
-            portStr = portStr[:22] + "..."
-        }
-        details.WriteString(fmt.Sprintf(" [#cba6f7]│[white] [#f9e2af::b]%-15s[::-][white] [#a6e3a1]%s[white]\n", "Ports", portStr))
-    }
-    details.WriteString(" [#cba6f7]╰──────────────────────────────────╯[white]\n\n")
+	if service.Image != "" {
+		details.WriteString(fmt.Sprintf(" [#cba6f7]│[white] [#f9e2af::b]%-15s[::-][white] [#a6adc8]%s[white]\n", "Image", truncate(service.Image, 20)))
+	}
+	if service.Version != "" {
+		details.WriteString(fmt.Sprintf(" [#cba6f7]│[white] [#f9e2af::b]%-15s[::-][white] [#89b4fa]%s[white]\n", "Version", service.Version))
+	}
+	if len(service.Ports) > 0 {
+		portStr := strings.Join(service.Ports, ", ")
+		if len(portStr) > 25 {
+			portStr = portStr[:22] + "..."
+		}
+		details.WriteString(fmt.Sprintf(" [#cba6f7]│[white] [#f9e2af::b]%-15s[::-][white] [#a6e3a1]%s[white]\n", "Ports", portStr))
+	}
+	details.WriteString(" [#cba6f7]╰──────────────────────────────────╯[white]\n\n")
 
-    // Runtime information
-    details.WriteString(" [#89b4fa]╭─ Runtime ────────────────────────╮[white]\n")
-    uptime := time.Since(service.CreatedAt)
-    details.WriteString(fmt.Sprintf(" [#89b4fa]│[white] [#f9e2af::b]%-15s[::-][white] [#a6e3a1]%s[white]\n", "Uptime", components.FormatDuration(int64(uptime.Seconds()))))
-    details.WriteString(fmt.Sprintf(" [#89b4fa]│[white] [#f9e2af::b]%-15s[::-][white] [#585b70]%s[white]\n", "Created", service.CreatedAt.Format("Jan 2, 15:04")))
-    if service.HealthCheck != "" {
-        details.WriteString(fmt.Sprintf(" [#89b4fa]│[white] [#f9e2af::b]%-15s[::-][white] %s\n", "Health", service.HealthCheck))
-    }
-    details.WriteString(" [#89b4fa]╰──────────────────────────────────╯[white]\n")
+	// Runtime information
+	details.WriteString(" [#89b4fa]╭─ Runtime ────────────────────────╮[white]\n")
+	uptime := time.Since(service.CreatedAt)
+	details.WriteString(fmt.Sprintf(" [#89b4fa]│[white] [#f9e2af::b]%-15s[::-][white] [#a6e3a1]%s[white]\n", "Uptime", components.FormatDuration(int64(uptime.Seconds()))))
+	details.WriteString(fmt.Sprintf(" [#89b4fa]│[white] [#f9e2af::b]%-15s[::-][white] [#585b70]%s[white]\n", "Created", service.CreatedAt.Format("Jan 2, 15:04")))
+	if service.HealthCheck != "" {
+		details.WriteString(fmt.Sprintf(" [#89b4fa]│[white] [#f9e2af::b]%-15s[::-][white] %s\n", "Health", service.HealthCheck))
+	}
+	details.WriteString(" [#89b4fa]╰──────────────────────────────────╯[white]\n")
 
-    // Apply only when changed
-    dt := details.String()
-    if dt != d.lastDetailsText {
-        d.detailsPanel.SetText(dt)
-        d.lastDetailsText = dt
-    }
+	// Apply only when changed
+	dt := details.String()
+	if dt != d.lastDetailsText {
+		d.detailsPanel.SetText(dt)
+		d.lastDetailsText = dt
+	}
 }
 
 // updateMetricsContent updates ONLY metrics content, never borders
@@ -468,21 +436,19 @@ func (d *ProDashboard) updateStatsContent() {
 
 // contentOnlyUpdateLoop updates ONLY content at a slow rate, NEVER borders
 func (d *ProDashboard) contentOnlyUpdateLoop() {
-	d.updateTicker = time.NewTicker(5 * time.Second)
+	// Update metrics every 2 seconds for a "live" feel
+	d.updateTicker = time.NewTicker(2 * time.Second)
 	defer d.updateTicker.Stop()
 
 	for range d.updateTicker.C {
-		newServices := d.app.GetServices()
-		if d.servicesChanged(newServices) {
-			d.tviewApp.QueueUpdate(func() {
-				d.services = newServices
-				d.updateServiceListContent()
-				d.updateDetailsContent()
-				d.updateMetricsContent()
-				d.updateStatsContent()
-				d.updateHeaderContent()
-			})
-		}
+		d.tviewApp.QueueUpdateDraw(func() {
+			d.services = d.app.GetServices()
+			d.updateServiceListContent()
+			d.updateDetailsContent()
+			d.updateMetricsContent()
+			d.updateStatsContent()
+			d.updateHeaderContent()
+		})
 	}
 }
 
@@ -571,17 +537,19 @@ func (d *ProDashboard) refreshContentOnly() {
 func (d *ProDashboard) manualRefresh() {
 	d.app.RefreshServices()
 	d.services = d.app.GetServices()
+	d.updateServiceListContent()
 	d.updateDetailsContent()
 	d.updateMetricsContent()
 	d.updateStatsContent()
-	
+	d.updateHeaderContent()
+
 	// Show temporary status message
 	originalFooter := d.footerPanel.GetText(false)
 	d.footerPanel.SetText("[#a6e3a1]✨ Refreshed - Values Only[white]")
-	
+
 	go func() {
 		time.Sleep(2 * time.Second)
-		d.tviewApp.QueueUpdate(func() {
+		d.tviewApp.QueueUpdateDraw(func() {
 			d.footerPanel.SetText(originalFooter)
 		})
 	}()
