@@ -236,7 +236,7 @@ func (d *ProDashboard) updateHeaderContent() {
 
 // updateFooterContent updates ONLY the footer text, never the structure
 func (d *ProDashboard) updateFooterContent() {
-	footer := "[#89b4fa]↑↓/Click[white] Navigate [#585b70]│[white] [#a6e3a1]R[white] Refresh [#585b70]│[white] [#cba6f7]T[white] Toggle View [#585b70]│[white] [#f38ba8]Q[white] Quit [#585b70]│[white] [#585b70::i]Content-Only Updates[::-][white]"
+	footer := "[#89b4fa]↑↓/Click[white] Navigate [#585b70]│[white] [#a6e3a1]R[white] Refresh [#585b70]│[white] [#cba6f7]T[white] Toggle View [#585b70]│[white] [#f9e2af]?[white] Help [#585b70]│[white] [#f38ba8]Q[white] Quit [#585b70]│[white] [#585b70::i]Content-Only Updates[::-][white]"
 	d.footerPanel.SetText(footer)
 }
 
@@ -270,6 +270,7 @@ func (d *ProDashboard) updateServiceListContent() {
 		}
 
 		// First line (name/type) with background per state
+		content.WriteString(fmt.Sprintf("[\"service_%d\"]", i))
 		if i == d.selectedIndex {
 			content.WriteString(fmt.Sprintf("%s[white:#313244:b]%s %s %-23s [#585b70:#313244:]%-10s[white::]\n",
 				indicator, statusIcon, typeIcon, name, service.Type))
@@ -311,17 +312,26 @@ func (d *ProDashboard) updateServiceListContent() {
 				bgTag, cpuBar, bgTag, memBar))
 		}
 
+		content.WriteString("[\"\"]")
 		if i < len(d.services)-1 {
 			content.WriteString("\n")
 		}
 	}
-	
+
 	// Update content ONLY - border never touched (only when changed)
 	slt := content.String()
 	if slt != d.lastServiceListText {
 		d.servicePanel.SetText(slt)
 		d.lastServiceListText = slt
+		d.scrollToSelection()
 	}
+}
+
+// scrollToSelection ensures the selected service is visible
+func (d *ProDashboard) scrollToSelection() {
+	tag := fmt.Sprintf("service_%d", d.selectedIndex)
+	d.servicePanel.Highlight(tag)
+	d.servicePanel.ScrollToHighlight()
 }
 
 // updateDetailsContent updates ONLY details content, never borders (cached)
