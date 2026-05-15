@@ -63,11 +63,14 @@ func NewProDashboard(application *app.App) *ProDashboard {
 func (d *ProDashboard) Run() error {
 	// Step 1: Create borders ONCE - they will NEVER be touched again
 	d.createBordersOnce()
-	
-	// Step 2: Load initial content into regions
+
+	// Step 2: Load services before initial content update
+	d.services = d.app.GetServices()
+
+	// Step 3: Load initial content into regions
 	d.loadInitialContent()
-	
-	// Step 3: Start content-only background updates
+
+	// Step 4: Start content-only background updates
 	go d.contentOnlyUpdateLoop()
 	
 	// Step 4: Setup keyboard handling

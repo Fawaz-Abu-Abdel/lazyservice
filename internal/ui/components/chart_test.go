@@ -24,11 +24,12 @@ func TestCreateBarChart(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := CreateBarChart(tt.value, tt.max, tt.width)
-			
-			if len(result) != tt.width {
-				t.Errorf("Expected width %d, got %d", tt.width, len(result))
+
+			resultWidth := len([]rune(result))
+			if resultWidth != tt.width {
+				t.Errorf("Expected width %d, got %d", tt.width, resultWidth)
 			}
-			
+
 			filled := strings.Count(result, "█")
 			if filled != tt.expected {
 				t.Errorf("Expected %d filled chars, got %d", tt.expected, filled)
@@ -108,19 +109,20 @@ func TestFormatDuration(t *testing.T) {
 
 func TestCreateMiniChart(t *testing.T) {
 	data := []float64{1, 2, 3, 4, 5}
-	
+
 	result := CreateMiniChart(data, 3, 5)
-	
+
 	if len(result) != 3 {
 		t.Errorf("Expected height 3, got %d", len(result))
 	}
-	
+
 	for i, line := range result {
-		if len(line) != 5 {
-			t.Errorf("Line %d: expected width 5, got %d", i, len(line))
+		lineWidth := len([]rune(line))
+		if lineWidth != 5 {
+			t.Errorf("Line %d: expected width 5, got %d", i, lineWidth)
 		}
 	}
-	
+
 	// Test empty data
 	emptyResult := CreateMiniChart([]float64{}, 3, 5)
 	if len(emptyResult) != 0 {

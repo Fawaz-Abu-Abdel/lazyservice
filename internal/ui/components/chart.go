@@ -51,7 +51,7 @@ func CreateSparkline(data []float64, width int) string {
 		step = 1
 	}
 
-	for i := 0; i < width && i*step < len(data); i++ {
+	for i := 0; i < width; i++ {
 		idx := i * step
 		if idx >= len(data) {
 			idx = len(data) - 1
