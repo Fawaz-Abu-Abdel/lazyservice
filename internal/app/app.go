@@ -122,7 +122,14 @@ func (a *App) RefreshServices() {
 				if err != nil {
 					logger.Warnf("Failed to collect metrics for service %s (%s): %v", service.Name, service.Type, err)
 				} else if metrics != nil {
-					service.Metrics = metrics
+					// Preserve history before overwriting metrics if available
+					if service.Metrics != nil {
+						history := service.Metrics.History
+						service.Metrics = metrics
+						service.Metrics.History = history
+					} else {
+						service.Metrics = metrics
+					}
 
 					// Add new metrics to history
 					if service.Metrics.History != nil {

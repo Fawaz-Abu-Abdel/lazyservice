@@ -24,13 +24,13 @@ type ProDashboard struct {
 	statsPanel     *tview.TextView
 	headerPanel    *tview.TextView
 	footerPanel    *tview.TextView
+	rootLayout     tview.Primitive
 	
 	// State
 	services       []*app.Service
 	selectedIndex  int
 	hoverIndex     int
 	theme          *Theme
-	lastUpdate     time.Time
 	
 	// Last rendered caches (for content-only updates)
 	lastServiceListText string
@@ -200,6 +200,7 @@ func (d *ProDashboard) createBordersOnce() {
 		AddItem(mainLayout, 0, 1, true).
 		AddItem(d.footerPanel, 1, 0, false)
 	
+	d.rootLayout = rootLayout
 	d.tviewApp.SetRoot(rootLayout, true)
 	
 	// Mark borders as created - they will NEVER be touched again
@@ -236,7 +237,7 @@ func (d *ProDashboard) updateHeaderContent() {
 
 // updateFooterContent updates ONLY the footer text, never the structure
 func (d *ProDashboard) updateFooterContent() {
-	footer := "[#89b4fa]↑↓/Click[white] Navigate [#585b70]│[white] [#a6e3a1]R[white] Refresh [#585b70]│[white] [#cba6f7]T[white] Toggle View [#585b70]│[white] [#f38ba8]Q[white] Quit [#585b70]│[white] [#585b70::i]Content-Only Updates[::-][white]"
+	footer := "[#89b4fa]↑↓/Click[white] Navigate [#585b70]│[white] [#a6e3a1]R[white] Refresh [#585b70]│[white] [#cba6f7]T[white] Toggle View [#585b70]│[white] [#f9e2af]?[white] Help [#585b70]│[white] [#f38ba8]Q[white] Quit [#585b70]│[white] [#585b70::i]Content-Only Updates[::-][white]"
 	d.footerPanel.SetText(footer)
 }
 
@@ -270,6 +271,7 @@ func (d *ProDashboard) updateServiceListContent() {
 		}
 
 		// First line (name/type) with background per state
+		content.WriteString(fmt.Sprintf("[\"service_%d\"]", i))
 		if i == d.selectedIndex {
 			content.WriteString(fmt.Sprintf("%s[white:#313244:b]%s %s %-23s [#585b70:#313244:]%-10s[white::]\n",
 				indicator, statusIcon, typeIcon, name, service.Type))
@@ -311,17 +313,26 @@ func (d *ProDashboard) updateServiceListContent() {
 				bgTag, cpuBar, bgTag, memBar))
 		}
 
+		content.WriteString("[\"\"]")
 		if i < len(d.services)-1 {
 			content.WriteString("\n")
 		}
 	}
-	
+
 	// Update content ONLY - border never touched (only when changed)
 	slt := content.String()
 	if slt != d.lastServiceListText {
 		d.servicePanel.SetText(slt)
 		d.lastServiceListText = slt
+		d.scrollToSelection()
 	}
+}
+
+// scrollToSelection ensures the selected service is visible
+func (d *ProDashboard) scrollToSelection() {
+	tag := fmt.Sprintf("service_%d", d.selectedIndex)
+	d.servicePanel.Highlight(tag)
+	d.servicePanel.ScrollToHighlight()
 }
 
 // updateDetailsContent updates ONLY details content, never borders (cached)
@@ -519,7 +530,7 @@ func (d *ProDashboard) setupKeyboardHandling() {
 			d.toggleView()
 			return nil
 		case 'h', 'H', '?':
-			d.showHelp()
+			d.showHelpModal()
 			return nil
 		}
 		
@@ -593,17 +604,38 @@ func (d *ProDashboard) toggleView() {
 	d.refreshContentOnly()
 }
 
-// showHelp shows help information
-func (d *ProDashboard) showHelp() {
-	originalFooter := d.footerPanel.GetText(false)
-	d.footerPanel.SetText("[#89b4fa]Help: ↑↓/jk=Navigate | R=Refresh | T=Toggle | Q=Quit | Press any key to dismiss[white]")
-	
-	go func() {
-		time.Sleep(5 * time.Second)
-		d.tviewApp.QueueUpdate(func() {
-			d.footerPanel.SetText(originalFooter)
+// showHelpModal shows a help modal with shortcuts
+func (d *ProDashboard) showHelpModal() {
+	helpText := `[#cba6f7::b]LazyService Pro - Keyboard Shortcuts[white]
+
+[#89b4fa]Navigation:[white]
+  ↑/↓, j/k    Navigate service list
+  Click       Select service
+  Enter       Refresh selection
+
+[#a6e3a1]Actions:[white]
+  R, r        Manual refresh
+  T, t        Toggle dashboard view (Coming soon)
+
+[#f9e2af]General:[white]
+  ?, H, h     Show this help
+  Q, q        Quit application
+
+[#585b70::i]Press any key to close help...[::-]`
+
+	modal := tview.NewModal().
+		SetText(helpText).
+		AddButtons([]string{"Close"}).
+		SetDoneFunc(func(buttonIndex int, buttonLabel string) {
+			d.tviewApp.SetRoot(d.rootLayout, true)
 		})
-	}()
+
+	modal.SetBorder(true).
+		SetTitle(" Help ").
+		SetTitleColor(tcell.NewRGBColor(249, 226, 175)).
+		SetBorderColor(tcell.NewRGBColor(137, 180, 250))
+
+	d.tviewApp.SetRoot(modal, true)
 }
 
 // Helper functions
@@ -636,24 +668,6 @@ func (d *ProDashboard) getServiceTypeIcon(serviceType app.ServiceType) string {
 	}
 }
 
-func (d *ProDashboard) miniProgressBar(percent float64, width int) string {
-	filled := int((percent / 100.0) * float64(width))
-	if filled > width {
-		filled = width
-	}
-	if filled < 0 {
-		filled = 0
-	}
-	
-	bar := "[#a6e3a1]"
-	bar += strings.Repeat("▮", filled)
-	bar += "[#585b70]"
-	bar += strings.Repeat("▯", width-filled)
-	bar += fmt.Sprintf("[#a6adc8] %4.1f%%[white]", percent)
-	
-	return bar
-}
-
 func (d *ProDashboard) compactProgressBar(percent float64, width int) string {
 	filled := int((percent / 100.0) * float64(width))
 	if filled > width {
@@ -665,11 +679,10 @@ func (d *ProDashboard) compactProgressBar(percent float64, width int) string {
 	
 	// Color based on usage
 	color := "#a6e3a1" // green
-	if percent > 60 {
-		color = "#f9e2af" // yellow
-	}
 	if percent > 85 {
 		color = "#f38ba8" // red
+	} else if percent > 60 {
+		color = "#f9e2af" // yellow
 	}
 	
 	bar := "[" + color + "]"

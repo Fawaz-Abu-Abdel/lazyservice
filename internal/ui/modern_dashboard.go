@@ -20,11 +20,9 @@ type ModernDashboard struct {
 	mainFlex        *tview.Flex
 	leftPanel       *tview.Flex
 	rightPanel      *tview.Flex
-	bottomPanel     *tview.Flex
 	
 	// Service components
 	serviceList     *tview.Table
-	serviceHeader   *tview.TextView
 	
 	// Detail components
 	detailsView     *tview.TextView
@@ -43,8 +41,6 @@ type ModernDashboard struct {
 	currentView     string
 	animationFrame  int
 	lastRefresh     time.Time
-	
-	// Border-safe mode
 	bordersLocked   bool
 	contentOnly     bool
 }
@@ -375,7 +371,7 @@ func (d *ModernDashboard) updateServiceDetails(service *app.Service) {
 	var details strings.Builder
 	
 	details.WriteString("\n")
-	details.WriteString(fmt.Sprintf(" [#cba6f7]╭─ Service Information ─╮[white]\n"))
+	details.WriteString(" [#cba6f7]╭─ Service Information ─╮[white]\n")
 	details.WriteString(fmt.Sprintf(" [#89b4fa]│[white] [#f9e2af]Name:[white]      %s\n", service.Name))
 	details.WriteString(fmt.Sprintf(" [#89b4fa]│[white] [#f9e2af]Type:[white]      %s %s\n", d.getServiceIcon(service.Type), service.Type))
 	details.WriteString(fmt.Sprintf(" [#89b4fa]│[white] [#f9e2af]Status:[white]    %s %s\n", StatusIcon(string(service.Status), d.theme), service.Status))
@@ -391,10 +387,10 @@ func (d *ModernDashboard) updateServiceDetails(service *app.Service) {
 		details.WriteString(fmt.Sprintf(" [#89b4fa]│[white] [#f9e2af]Ports:[white]     %s\n", strings.Join(service.Ports, ", ")))
 	}
 	
-	details.WriteString(fmt.Sprintf(" [#cba6f7]╰─────────────────────────╯[white]\n\n"))
+	details.WriteString(" [#cba6f7]╰─────────────────────────╯[white]\n\n")
 	
 	// Runtime information
-	details.WriteString(fmt.Sprintf(" [#cba6f7]╭─ Runtime Information ─╮[white]\n"))
+	details.WriteString(" [#cba6f7]╭─ Runtime Information ─╮[white]\n")
 	details.WriteString(fmt.Sprintf(" [#89b4fa]│[white] [#f9e2af]Created:[white]   %s\n", service.CreatedAt.Format("2006-01-02 15:04:05")))
 	
 	uptime := time.Since(service.CreatedAt)
@@ -404,7 +400,7 @@ func (d *ModernDashboard) updateServiceDetails(service *app.Service) {
 		details.WriteString(fmt.Sprintf(" [#89b4fa]│[white] [#f9e2af]Health:[white]    %s\n", service.HealthCheck))
 	}
 	
-	details.WriteString(fmt.Sprintf(" [#cba6f7]╰─────────────────────────╯[white]\n"))
+	details.WriteString(" [#cba6f7]╰─────────────────────────╯[white]\n")
 	
 	d.detailsView.SetText(details.String())
 }
@@ -612,20 +608,17 @@ func (d *ModernDashboard) backgroundDataLoop() {
 	ticker := time.NewTicker(30 * time.Second) // Much slower - only every 30 seconds
 	defer ticker.Stop()
 
-	for {
-		select {
-		case <-ticker.C:
-			// Only update if data actually changed
-			newServices := d.app.GetServices()
-			if d.servicesChanged(newServices) {
-				d.tviewApp.QueueUpdateDraw(func() {
-					d.services = newServices
-					d.updateServiceTable()
-					if d.selectedIndex < len(d.services) {
-						d.updateDetailPanels()
-					}
-				})
-			}
+	for range ticker.C {
+		// Only update if data actually changed
+		newServices := d.app.GetServices()
+		if d.servicesChanged(newServices) {
+			d.tviewApp.QueueUpdateDraw(func() {
+				d.services = newServices
+				d.updateServiceTable()
+				if d.selectedIndex < len(d.services) {
+					d.updateDetailPanels()
+				}
+			})
 		}
 	}
 }
@@ -635,23 +628,20 @@ func (d *ModernDashboard) animationLoop() {
 	ticker := time.NewTicker(5 * time.Second) // Very slow - only every 5 seconds
 	defer ticker.Stop()
 
-	for {
-		select {
-		case <-ticker.C:
-			d.tviewApp.QueueUpdateDraw(func() {
-				d.animationFrame++
-				d.updateStatusBar()
-				
-				// Update header time only every 5 seconds to reduce refresh
-				headerText := fmt.Sprintf(
-					"[#89b4fa]╭─────────────────────────────────────────────────────────────────────────────────╮[white]\n"+
+	for range ticker.C {
+		d.tviewApp.QueueUpdateDraw(func() {
+			d.animationFrame++
+			d.updateStatusBar()
+
+			// Update header time only every 5 seconds to reduce refresh
+			headerText := fmt.Sprintf(
+				"[#89b4fa]╭─────────────────────────────────────────────────────────────────────────────────╮[white]\n"+
 					"[#89b4fa]│[white] [#cba6f7]⚡ LazyService[white] [#a6adc8]v2.0[white] [#89b4fa]│[white] [#f9e2af]Modern Dashboard[white] [#89b4fa]│[white] [#a6e3a1]%s[white] [#89b4fa]│[white]\n"+
 					"[#89b4fa]╰─────────────────────────────────────────────────────────────────────────────────╯[white]",
-					time.Now().Format("15:04:05"))
-				
-				d.headerBar.SetText(headerText)
-			})
-		}
+				time.Now().Format("15:04:05"))
+
+			d.headerBar.SetText(headerText)
+		})
 	}
 }
 
