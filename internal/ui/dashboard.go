@@ -383,34 +383,52 @@ func (d *Dashboard) updateContentOnly() {
 
 	details.WriteString(fmt.Sprintf("\n [yellow]Created:[white] %s\n", service.CreatedAt.Format("2006-01-02 15:04:05")))
 
-	// Only SetText - never any border operations
-	d.detailsView.SetText(details.String())
+	newDetails := details.String()
+	if d.lastDetailsText != newDetails {
+		d.detailsView.SetText(newDetails)
+		d.lastDetailsText = newDetails
+	}
 
 	// Update metrics or statistics content based on current mode
 	if d.showStatistics {
 		// Show statistics view
 		statsText := FormatStatistics(service)
-		d.statisticsView.SetText(statsText)
-		d.lastStatsText = statsText
-		
+		if d.lastStatsText != statsText {
+			d.statisticsView.SetText(statsText)
+			d.lastStatsText = statsText
+		}
+
 		// Show quick metrics in metrics view
 		if service.Metrics != nil {
 			quickMetrics := FormatQuickStats(service)
-			d.metricsView.SetText(quickMetrics)
+			if d.lastMetricsText != quickMetrics {
+				d.metricsView.SetText(quickMetrics)
+				d.lastMetricsText = quickMetrics
+			}
 		} else {
-			d.metricsView.SetText("\n [gray]Collecting metrics...")
+			noMetrics := "\n [gray]Collecting metrics..."
+			if d.lastMetricsText != noMetrics {
+				d.metricsView.SetText(noMetrics)
+				d.lastMetricsText = noMetrics
+			}
 		}
 	} else {
 		// Show metrics view
 		if service.Metrics != nil {
 			d.updateMetricsContentOnly(service)
 		} else {
-			d.metricsView.SetText("\n [gray]Collecting metrics...")
+			noMetrics := "\n [gray]Collecting metrics..."
+			if d.lastMetricsText != noMetrics {
+				d.metricsView.SetText(noMetrics)
+				d.lastMetricsText = noMetrics
+			}
 		}
 		// Show quick stats in statistics view
 		quickStats := FormatQuickStats(service)
-		d.statisticsView.SetText(quickStats)
-		d.lastStatsText = quickStats
+		if d.lastStatsText != quickStats {
+			d.statisticsView.SetText(quickStats)
+			d.lastStatsText = quickStats
+		}
 	}
 }
 
@@ -450,8 +468,11 @@ func (d *Dashboard) updateMetricsContentOnly(service *app.Service) {
 			components.FormatDuration(int64(metrics.Uptime.Seconds()))))
 	}
 
-	// Only SetText - never any border operations
-	d.metricsView.SetText(metricsText.String())
+	newMetricsText := metricsText.String()
+	if d.lastMetricsText != newMetricsText {
+		d.metricsView.SetText(newMetricsText)
+		d.lastMetricsText = newMetricsText
+	}
 }
 
 // toggleStatisticsView toggles between metrics and statistics view
