@@ -89,7 +89,7 @@ func CreateSparklineChart(data []float64, width int, baseColor string) string {
 		}
 		
 		// Color based on value
-		color := baseColor
+			var color string
 		if value > (max * 0.8) {
 			color = "red"
 		} else if value > (max * 0.6) {

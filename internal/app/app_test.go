@@ -119,7 +119,7 @@ func TestGetService(t *testing.T) {
 	
 	service := app.GetService("test-service")
 	if service == nil {
-		t.Error("GetService returned nil for existing service")
+		t.Fatal("GetService returned nil for existing service")
 	}
 	
 	if service.Name != "Test Service" {

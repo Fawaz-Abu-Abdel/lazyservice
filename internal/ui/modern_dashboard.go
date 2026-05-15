@@ -371,7 +371,7 @@ func (d *ModernDashboard) updateServiceDetails(service *app.Service) {
 	var details strings.Builder
 	
 	details.WriteString("\n")
-	details.WriteString(fmt.Sprintf(" [#cba6f7]╭─ Service Information ─╮[white]\n"))
+	details.WriteString(" [#cba6f7]╭─ Service Information ─╮[white]\n")
 	details.WriteString(fmt.Sprintf(" [#89b4fa]│[white] [#f9e2af]Name:[white]      %s\n", service.Name))
 	details.WriteString(fmt.Sprintf(" [#89b4fa]│[white] [#f9e2af]Type:[white]      %s %s\n", d.getServiceIcon(service.Type), service.Type))
 	details.WriteString(fmt.Sprintf(" [#89b4fa]│[white] [#f9e2af]Status:[white]    %s %s\n", StatusIcon(string(service.Status), d.theme), service.Status))
@@ -387,10 +387,10 @@ func (d *ModernDashboard) updateServiceDetails(service *app.Service) {
 		details.WriteString(fmt.Sprintf(" [#89b4fa]│[white] [#f9e2af]Ports:[white]     %s\n", strings.Join(service.Ports, ", ")))
 	}
 	
-	details.WriteString(fmt.Sprintf(" [#cba6f7]╰─────────────────────────╯[white]\n\n"))
+	details.WriteString(" [#cba6f7]╰─────────────────────────╯[white]\n\n")
 	
 	// Runtime information
-	details.WriteString(fmt.Sprintf(" [#cba6f7]╭─ Runtime Information ─╮[white]\n"))
+	details.WriteString(" [#cba6f7]╭─ Runtime Information ─╮[white]\n")
 	details.WriteString(fmt.Sprintf(" [#89b4fa]│[white] [#f9e2af]Created:[white]   %s\n", service.CreatedAt.Format("2006-01-02 15:04:05")))
 	
 	uptime := time.Since(service.CreatedAt)
@@ -400,7 +400,7 @@ func (d *ModernDashboard) updateServiceDetails(service *app.Service) {
 		details.WriteString(fmt.Sprintf(" [#89b4fa]│[white] [#f9e2af]Health:[white]    %s\n", service.HealthCheck))
 	}
 	
-	details.WriteString(fmt.Sprintf(" [#cba6f7]╰─────────────────────────╯[white]\n"))
+	details.WriteString(" [#cba6f7]╰─────────────────────────╯[white]\n")
 	
 	d.detailsView.SetText(details.String())
 }
