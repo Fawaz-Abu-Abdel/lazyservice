@@ -45,12 +45,6 @@ func CreateSparkline(data []float64, width int) string {
 	chars := []rune{'▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'}
 	result := ""
 
-	// Sample data points if we have more than width
-	step := len(data) / width
-	if step < 1 {
-		step = 1
-	}
-
 	for i := 0; i < width; i++ {
 		var value float64
 		if len(data) > 0 {

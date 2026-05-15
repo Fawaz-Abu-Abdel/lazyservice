@@ -31,7 +31,6 @@ type ProDashboard struct {
 	selectedIndex  int
 	hoverIndex     int
 	theme          *Theme
-	lastUpdate     time.Time
 	
 	// Last rendered caches (for content-only updates)
 	lastServiceListText string
@@ -669,24 +668,6 @@ func (d *ProDashboard) getServiceTypeIcon(serviceType app.ServiceType) string {
 	}
 }
 
-func (d *ProDashboard) miniProgressBar(percent float64, width int) string {
-	filled := int((percent / 100.0) * float64(width))
-	if filled > width {
-		filled = width
-	}
-	if filled < 0 {
-		filled = 0
-	}
-	
-	bar := "[#a6e3a1]"
-	bar += strings.Repeat("▮", filled)
-	bar += "[#585b70]"
-	bar += strings.Repeat("▯", width-filled)
-	bar += fmt.Sprintf("[#a6adc8] %4.1f%%[white]", percent)
-	
-	return bar
-}
-
 func (d *ProDashboard) compactProgressBar(percent float64, width int) string {
 	filled := int((percent / 100.0) * float64(width))
 	if filled > width {
@@ -698,11 +679,10 @@ func (d *ProDashboard) compactProgressBar(percent float64, width int) string {
 	
 	// Color based on usage
 	color := "#a6e3a1" // green
-	if percent > 60 {
-		color = "#f9e2af" // yellow
-	}
 	if percent > 85 {
 		color = "#f38ba8" // red
+	} else if percent > 60 {
+		color = "#f9e2af" // yellow
 	}
 	
 	bar := "[" + color + "]"

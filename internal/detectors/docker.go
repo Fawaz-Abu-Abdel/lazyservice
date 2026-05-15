@@ -75,10 +75,7 @@ func (d *DockerDetector) containerToService(c types.Container) *app.Service {
 	}
 
 	// Get container name (remove leading slash)
-	name := c.Names[0]
-	if strings.HasPrefix(name, "/") {
-		name = name[1:]
-	}
+	name := strings.TrimPrefix(c.Names[0], "/")
 
 	// Determine health check
 	healthCheck := ""
