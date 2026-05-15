@@ -24,6 +24,7 @@ type ProDashboard struct {
 	statsPanel     *tview.TextView
 	headerPanel    *tview.TextView
 	footerPanel    *tview.TextView
+	rootLayout     tview.Primitive
 	
 	// State
 	services       []*app.Service
@@ -200,6 +201,7 @@ func (d *ProDashboard) createBordersOnce() {
 		AddItem(mainLayout, 0, 1, true).
 		AddItem(d.footerPanel, 1, 0, false)
 	
+	d.rootLayout = rootLayout
 	d.tviewApp.SetRoot(rootLayout, true)
 	
 	// Mark borders as created - they will NEVER be touched again
@@ -529,7 +531,7 @@ func (d *ProDashboard) setupKeyboardHandling() {
 			d.toggleView()
 			return nil
 		case 'h', 'H', '?':
-			d.showHelp()
+			d.showHelpModal()
 			return nil
 		}
 		
@@ -603,17 +605,38 @@ func (d *ProDashboard) toggleView() {
 	d.refreshContentOnly()
 }
 
-// showHelp shows help information
-func (d *ProDashboard) showHelp() {
-	originalFooter := d.footerPanel.GetText(false)
-	d.footerPanel.SetText("[#89b4fa]Help: ↑↓/jk=Navigate | R=Refresh | T=Toggle | Q=Quit | Press any key to dismiss[white]")
-	
-	go func() {
-		time.Sleep(5 * time.Second)
-		d.tviewApp.QueueUpdate(func() {
-			d.footerPanel.SetText(originalFooter)
+// showHelpModal shows a help modal with shortcuts
+func (d *ProDashboard) showHelpModal() {
+	helpText := `[#cba6f7::b]LazyService Pro - Keyboard Shortcuts[white]
+
+[#89b4fa]Navigation:[white]
+  ↑/↓, j/k    Navigate service list
+  Click       Select service
+  Enter       Refresh selection
+
+[#a6e3a1]Actions:[white]
+  R, r        Manual refresh
+  T, t        Toggle dashboard view (Coming soon)
+
+[#f9e2af]General:[white]
+  ?, H, h     Show this help
+  Q, q        Quit application
+
+[#585b70::i]Press any key to close help...[::-]`
+
+	modal := tview.NewModal().
+		SetText(helpText).
+		AddButtons([]string{"Close"}).
+		SetDoneFunc(func(buttonIndex int, buttonLabel string) {
+			d.tviewApp.SetRoot(d.rootLayout, true)
 		})
-	}()
+
+	modal.SetBorder(true).
+		SetTitle(" Help ").
+		SetTitleColor(tcell.NewRGBColor(249, 226, 175)).
+		SetBorderColor(tcell.NewRGBColor(137, 180, 250))
+
+	d.tviewApp.SetRoot(modal, true)
 }
 
 // Helper functions

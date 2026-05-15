@@ -51,21 +51,27 @@ func CreateSparkline(data []float64, width int) string {
 		step = 1
 	}
 
-	for i := 0; i < width && i*step < len(data); i++ {
-		idx := i * step
-		if idx >= len(data) {
-			idx = len(data) - 1
+	for i := 0; i < width; i++ {
+		var value float64
+		if len(data) > 0 {
+			idx := (i * len(data)) / width
+			if idx >= len(data) {
+				idx = len(data) - 1
+			}
+			value = data[idx]
 		}
-		
-		value := data[idx]
+
 		normalized := 0.0
 		if max > min {
 			normalized = (value - min) / (max - min)
 		}
-		
+
 		charIdx := int(normalized * float64(len(chars)-1))
 		if charIdx >= len(chars) {
 			charIdx = len(chars) - 1
+		}
+		if charIdx < 0 {
+			charIdx = 0
 		}
 		result += string(chars[charIdx])
 	}

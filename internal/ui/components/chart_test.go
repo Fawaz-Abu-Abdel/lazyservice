@@ -3,6 +3,7 @@ package components
 import (
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestCreateBarChart(t *testing.T) {
@@ -25,8 +26,9 @@ func TestCreateBarChart(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := CreateBarChart(tt.value, tt.max, tt.width)
 			
-			if len(result) != tt.width {
-				t.Errorf("Expected width %d, got %d", tt.width, len(result))
+			resultWidth := utf8.RuneCountInString(result)
+			if resultWidth != tt.width {
+				t.Errorf("Expected width %d, got %d", tt.width, resultWidth)
 			}
 			
 			filled := strings.Count(result, "█")
@@ -54,8 +56,9 @@ func TestCreateSparkline(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := CreateSparkline(tt.data, tt.width)
 			
-			if len([]rune(result)) != tt.expected {
-				t.Errorf("Expected length %d, got %d", tt.expected, len([]rune(result)))
+			resultWidth := utf8.RuneCountInString(result)
+			if resultWidth != tt.expected {
+				t.Errorf("Expected length %d, got %d", tt.expected, resultWidth)
 			}
 		})
 	}
@@ -116,8 +119,9 @@ func TestCreateMiniChart(t *testing.T) {
 	}
 	
 	for i, line := range result {
-		if len(line) != 5 {
-			t.Errorf("Line %d: expected width 5, got %d", i, len(line))
+		resultWidth := utf8.RuneCountInString(line)
+		if resultWidth != 5 {
+			t.Errorf("Line %d: expected width 5, got %d", i, resultWidth)
 		}
 	}
 	
