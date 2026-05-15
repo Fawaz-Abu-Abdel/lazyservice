@@ -18,10 +18,10 @@ type ProDashboard struct {
 	tviewApp       *tview.Application
 	
 	// Main panels - created once, never recreated
-	servicePanel   *tview.Table
-	detailsPanel   *tview.Table
-	metricsPanel   *tview.Table
-	statsPanel     *tview.Table
+	servicePanel   *tview.TextView
+	detailsPanel   *tview.TextView
+	metricsPanel   *tview.TextView
+	statsPanel     *tview.TextView
 	headerPanel    *tview.TextView
 	footerPanel    *tview.TextView
 	
@@ -93,57 +93,55 @@ func (d *ProDashboard) createBordersOnce() {
 	// Header panel - created once
 	d.headerPanel = tview.NewTextView().
 		SetDynamicColors(true).
-		SetTextAlign(tview.AlignCenter).
-		SetRegions(true)
+		SetTextAlign(tview.AlignCenter)
 
-	// Service list panel - created once as a Table
-	d.servicePanel = tview.NewTable().
-		SetSelectable(true, false)
+	// Service list panel - created once
+	d.servicePanel = tview.NewTextView().
+		SetDynamicColors(true).
+		SetScrollable(true).
+		SetWordWrap(false)
 	d.servicePanel.SetBorder(true).
 		SetTitle(" 🚀 Services ").
 		SetBorderColor(tcell.NewRGBColor(137, 180, 250)).
 		SetTitleColor(tcell.NewRGBColor(203, 166, 247)).
 		SetBorderPadding(0, 0, 1, 1)
 
-	d.servicePanel.SetSelectionChangedFunc(func(row, column int) {
-		serviceIndex := row / 4
-		if serviceIndex >= 0 && serviceIndex < len(d.services) && serviceIndex != d.selectedIndex {
-			d.selectedIndex = serviceIndex
-			d.updateServiceListContent()
-			d.updateDetailsContent()
-			d.updateMetricsContent()
-			d.updateStatsContent()
-		}
-	})
-
-	// Details panel - created once as a Table
-	d.detailsPanel = tview.NewTable()
+	// Details panel - created once
+	d.detailsPanel = tview.NewTextView().
+		SetDynamicColors(true).
+		SetScrollable(true).
+		SetWordWrap(true)
 	d.detailsPanel.SetBorder(true).
 		SetTitle(" 📋 Service Details ").
 		SetBorderColor(tcell.NewRGBColor(137, 180, 250)).
 		SetTitleColor(tcell.NewRGBColor(249, 226, 175)).
 		SetBorderPadding(0, 0, 1, 1)
 
-	// Metrics panel - created once as a Table
-	d.metricsPanel = tview.NewTable()
+	// Metrics panel - created once
+	d.metricsPanel = tview.NewTextView().
+		SetDynamicColors(true).
+		SetScrollable(false).
+		SetWordWrap(false)
 	d.metricsPanel.SetBorder(true).
 		SetTitle(" 📊 Live Metrics ").
 		SetBorderColor(tcell.NewRGBColor(137, 180, 250)).
 		SetTitleColor(tcell.NewRGBColor(166, 227, 161)).
 		SetBorderPadding(0, 0, 1, 1)
 
-	// Statistics panel - created once as a Table
-	d.statsPanel = tview.NewTable()
+	// Statistics panel - created once
+	d.statsPanel = tview.NewTextView().
+		SetDynamicColors(true).
+		SetScrollable(true).
+		SetWordWrap(false)
 	d.statsPanel.SetBorder(true).
 		SetTitle(" 📈 Statistics & Insights ").
 		SetBorderColor(tcell.NewRGBColor(137, 180, 250)).
 		SetTitleColor(tcell.NewRGBColor(245, 194, 231)).
 		SetBorderPadding(0, 0, 1, 1)
 	
-	// Footer panel - created once with regions
+	// Footer panel - created once
 	d.footerPanel = tview.NewTextView().
 		SetDynamicColors(true).
-		SetRegions(true).
 		SetTextAlign(tview.AlignCenter)
 	
 	// Create layout - assembled once, never modified
@@ -212,23 +210,21 @@ func (d *ProDashboard) updateFooterContent() {
 	d.footerPanel.SetText(footer)
 }
 
-func (d *ProDashboard) updateTableCell(table *tview.Table, row, col int, text string) {
-	cell := table.GetCell(row, col)
-	if cell.Text != text {
-		cell.SetText(text)
-	}
-}
-
 // updateServiceListContent updates ONLY service list content, never borders
 func (d *ProDashboard) updateServiceListContent() {
 	if len(d.services) == 0 {
-		d.updateTableCell(d.servicePanel, 0, 0, "[#585b70::i]No services detected[white]")
+		emptyText := "\n\n  [#585b70::i]No services detected[white]\n  [#585b70]Scanning for services...[white]"
+		if emptyText != d.lastServiceListText {
+			d.servicePanel.SetText(emptyText)
+			d.lastServiceListText = emptyText
+		}
 		return
 	}
 
-	for i, service := range d.services {
-		row := i * 4
+	var content strings.Builder
+	content.WriteString("\n")
 
+	for i, service := range d.services {
 		// Selection indicator
 		indicator := "   "
 		if i == d.selectedIndex {
@@ -243,156 +239,195 @@ func (d *ProDashboard) updateServiceListContent() {
 			name = name[:20] + "..."
 		}
 
-		// First line (name/type)
-		style := "[white]"
+		// First line (name/type) with background per state
 		if i == d.selectedIndex {
-			style = "[white:#313244:b]"
+			content.WriteString(fmt.Sprintf("%s[white:#313244:b]%s %s %-23s [#585b70:#313244:]%-10s[white:#313244:]\n",
+				indicator, statusIcon, typeIcon, name, service.Type))
+		} else {
+			content.WriteString(fmt.Sprintf("%s%s %s [#cdd6f4]%-23s[white] [#585b70]%-10s[white]\n",
+				indicator, statusIcon, typeIcon, name, service.Type))
 		}
-		d.updateTableCell(d.servicePanel, row, 0, fmt.Sprintf("%s%s%s %s %-23s [#585b70]%s[white::]",
-			indicator, style, statusIcon, typeIcon, name, service.Type))
 
-		// Background tag for subsequent lines
+		// Background tag reused for subsequent lines
 		bgTag := ""
 		if i == d.selectedIndex {
 			bgTag = ":#313244"
 		}
 
-		// Second line: Ports or uptime
-		line2 := ""
+		// Ports or uptime
 		if len(service.Ports) > 0 && len(service.Ports) <= 3 {
 			portStr := strings.Join(service.Ports, ",")
 			if len(portStr) > 30 {
 				portStr = portStr[:27] + "..."
 			}
-			line2 = fmt.Sprintf("      [#585b70%s:]↳[white%s:] [#fab387%s:]:%s[white::]", bgTag, bgTag, bgTag, portStr)
+			content.WriteString(fmt.Sprintf("      [#585b70%s:]↳[white%s:] [#fab387%s:]:%s[white%s:]\n",
+				bgTag, bgTag, bgTag, portStr, bgTag))
 		} else {
 			uptime := time.Since(service.CreatedAt)
-			line2 = fmt.Sprintf("      [#585b70%s:]↳ up:[white%s:] [#a6adc8%s:]%s[white::]", bgTag, bgTag, bgTag, components.FormatDuration(int64(uptime.Seconds())))
+			content.WriteString(fmt.Sprintf("      [#585b70%s:]↳ up:[white%s:] [#a6adc8%s:]%s[white%s:]\n",
+				bgTag, bgTag, bgTag, components.FormatDuration(int64(uptime.Seconds())), bgTag))
 		}
-		d.updateTableCell(d.servicePanel, row+1, 0, line2)
 
-		// Third line: Compact metrics
-		line3 := ""
+		// Compact metrics
 		if service.Metrics != nil {
 			cpuBar := d.compactProgressBar(service.Metrics.CPUPercent, 8)
 			memBar := d.compactProgressBar(service.Metrics.MemoryPercent, 8)
-			line3 = fmt.Sprintf("      [#585b70%s:]cpu[white::]%s [#585b70%s:]mem[white::]%s", bgTag, cpuBar, bgTag, memBar)
+			content.WriteString(fmt.Sprintf("      [#585b70%s:]cpu[white%s:]%s [#585b70%s:]mem[white%s:]%s\n",
+				bgTag, bgTag, cpuBar, bgTag, bgTag, memBar))
 		}
-		d.updateTableCell(d.servicePanel, row+2, 0, line3)
 
-		// Fourth line: Spacer
-		d.updateTableCell(d.servicePanel, row+3, 0, "")
+		if i < len(d.services)-1 {
+			content.WriteString("\n")
+		}
+	}
+
+	// Update content ONLY - border never touched (only when changed)
+	slt := content.String()
+	if slt != d.lastServiceListText {
+		d.servicePanel.SetText(slt)
+		d.lastServiceListText = slt
 	}
 }
 
 // updateDetailsContent updates ONLY details content, never borders (cached)
 func (d *ProDashboard) updateDetailsContent() {
 	if d.selectedIndex >= len(d.services) || len(d.services) == 0 {
-		d.updateTableCell(d.detailsPanel, 0, 0, "[#585b70::i]No service selected[white]")
+		txt := "\n  [#585b70::i]No service selected[white]"
+		if txt != d.lastDetailsText {
+			d.detailsPanel.SetText(txt)
+			d.lastDetailsText = txt
+		}
 		return
 	}
 
 	service := d.services[d.selectedIndex]
+	var details strings.Builder
+	details.WriteString("\n")
 
-	// Service information rows
-	d.updateTableCell(d.detailsPanel, 0, 0, "[#cba6f7]╭─ Service Information ────────────╮[white]")
-	d.updateTableCell(d.detailsPanel, 1, 0, fmt.Sprintf(" [#cba6f7]│[white] [#f9e2af::b]%-15s[::-][white] [#cdd6f4]%s[white]", "Name", service.Name))
-	d.updateTableCell(d.detailsPanel, 2, 0, fmt.Sprintf(" [#cba6f7]│[white] [#f9e2af::b]%-15s[::-][white] [#89b4fa]%s[white] %s", "Type", service.Type, d.getServiceTypeIcon(service.Type)))
-	d.updateTableCell(d.detailsPanel, 3, 0, fmt.Sprintf(" [#cba6f7]│[white] [#f9e2af::b]%-15s[::-][white] %s %s", "Status", d.getStatusIcon(service.Status), service.Status))
-	d.updateTableCell(d.detailsPanel, 4, 0, fmt.Sprintf(" [#cba6f7]│[white] [#f9e2af::b]%-15s[::-][white] [#585b70]%s[white]", "ID", truncate(service.ID, 20)))
+	// Service information box
+	details.WriteString(" [#cba6f7]╭─ Service Information ────────────╮[white]\n")
+	details.WriteString(fmt.Sprintf(" [#cba6f7]│[white] [#f9e2af::b]%-15s[::-][white] [#cdd6f4]%s[white]\n", "Name", service.Name))
+	details.WriteString(fmt.Sprintf(" [#cba6f7]│[white] [#f9e2af::b]%-15s[::-][white] [#89b4fa]%s[white] %s\n", "Type", service.Type, d.getServiceTypeIcon(service.Type)))
+	details.WriteString(fmt.Sprintf(" [#cba6f7]│[white] [#f9e2af::b]%-15s[::-][white] %s %s\n", "Status", d.getStatusIcon(service.Status), service.Status))
+	details.WriteString(fmt.Sprintf(" [#cba6f7]│[white] [#f9e2af::b]%-15s[::-][white] [#585b70]%s[white]\n", "ID", truncate(service.ID, 20)))
 
-	row := 5
 	if service.Image != "" {
-		d.updateTableCell(d.detailsPanel, row, 0, fmt.Sprintf(" [#cba6f7]│[white] [#f9e2af::b]%-15s[::-][white] [#a6adc8]%s[white]", "Image", truncate(service.Image, 20)))
-		row++
+		details.WriteString(fmt.Sprintf(" [#cba6f7]│[white] [#f9e2af::b]%-15s[::-][white] [#a6adc8]%s[white]\n", "Image", truncate(service.Image, 20)))
 	}
 	if service.Version != "" {
-		d.updateTableCell(d.detailsPanel, row, 0, fmt.Sprintf(" [#cba6f7]│[white] [#f9e2af::b]%-15s[::-][white] [#89b4fa]%s[white]", "Version", service.Version))
-		row++
+		details.WriteString(fmt.Sprintf(" [#cba6f7]│[white] [#f9e2af::b]%-15s[::-][white] [#89b4fa]%s[white]\n", "Version", service.Version))
 	}
 	if len(service.Ports) > 0 {
 		portStr := strings.Join(service.Ports, ", ")
 		if len(portStr) > 25 {
 			portStr = portStr[:22] + "..."
 		}
-		d.updateTableCell(d.detailsPanel, row, 0, fmt.Sprintf(" [#cba6f7]│[white] [#f9e2af::b]%-15s[::-][white] [#a6e3a1]%s[white]", "Ports", portStr))
-		row++
+		details.WriteString(fmt.Sprintf(" [#cba6f7]│[white] [#f9e2af::b]%-15s[::-][white] [#a6e3a1]%s[white]\n", "Ports", portStr))
 	}
-	d.updateTableCell(d.detailsPanel, row, 0, "[#cba6f7]╰──────────────────────────────────╯[white]")
-	row++
+	details.WriteString(" [#cba6f7]╰──────────────────────────────────╯[white]\n\n")
 
 	// Runtime information
-	d.updateTableCell(d.detailsPanel, row, 0, "")
-	row++
-	d.updateTableCell(d.detailsPanel, row, 0, " [#89b4fa]╭─ Runtime ────────────────────────╮[white]")
-	row++
+	details.WriteString(" [#89b4fa]╭─ Runtime ────────────────────────╮[white]\n")
 	uptime := time.Since(service.CreatedAt)
-	d.updateTableCell(d.detailsPanel, row, 0, fmt.Sprintf(" [#89b4fa]│[white] [#f9e2af::b]%-15s[::-][white] [#a6e3a1]%s[white]", "Uptime", components.FormatDuration(int64(uptime.Seconds()))))
-	row++
-	d.updateTableCell(d.detailsPanel, row, 0, fmt.Sprintf(" [#89b4fa]│[white] [#f9e2af::b]%-15s[::-][white] [#585b70]%s[white]", "Created", service.CreatedAt.Format("Jan 2, 15:04")))
-	row++
+	details.WriteString(fmt.Sprintf(" [#89b4fa]│[white] [#f9e2af::b]%-15s[::-][white] [#a6e3a1]%s[white]\n", "Uptime", components.FormatDuration(int64(uptime.Seconds()))))
+	details.WriteString(fmt.Sprintf(" [#89b4fa]│[white] [#f9e2af::b]%-15s[::-][white] [#585b70]%s[white]\n", "Created", service.CreatedAt.Format("Jan 2, 15:04")))
 	if service.HealthCheck != "" {
-		d.updateTableCell(d.detailsPanel, row, 0, fmt.Sprintf(" [#89b4fa]│[white] [#f9e2af::b]%-15s[::-][white] %s", "Health", service.HealthCheck))
-		row++
+		details.WriteString(fmt.Sprintf(" [#89b4fa]│[white] [#f9e2af::b]%-15s[::-][white] %s\n", "Health", service.HealthCheck))
 	}
-	d.updateTableCell(d.detailsPanel, row, 0, " [#89b4fa]╰──────────────────────────────────╯[white]")
+	details.WriteString(" [#89b4fa]╰──────────────────────────────────╯[white]\n")
+
+	// Apply only when changed
+	dt := details.String()
+	if dt != d.lastDetailsText {
+		d.detailsPanel.SetText(dt)
+		d.lastDetailsText = dt
+	}
 }
 
 // updateMetricsContent updates ONLY metrics content, never borders
 func (d *ProDashboard) updateMetricsContent() {
 	if d.selectedIndex >= len(d.services) || len(d.services) == 0 {
-		d.updateTableCell(d.metricsPanel, 0, 0, "[#585b70::i]No service selected[white]")
+		txt := "\n  [#585b70::i]No service selected[white]"
+		if txt != d.lastMetricsText {
+			d.metricsPanel.SetText(txt)
+			d.lastMetricsText = txt
+		}
 		return
 	}
 
 	service := d.services[d.selectedIndex]
 	if service.Metrics == nil {
-		d.updateTableCell(d.metricsPanel, 0, 0, "[#585b70::i]Collecting metrics...[white]")
+		txt := "\n  [#585b70::i]Collecting metrics...[white]"
+		if txt != d.lastMetricsText {
+			d.metricsPanel.SetText(txt)
+			d.lastMetricsText = txt
+		}
 		return
 	}
 
 	metrics := service.Metrics
-	d.updateTableCell(d.metricsPanel, 0, 0, "")
-	d.updateTableCell(d.metricsPanel, 1, 0, " [#f9e2af::b]CPU[white]")
-	d.updateTableCell(d.metricsPanel, 2, 0, fmt.Sprintf(" %s", d.fullProgressBar(metrics.CPUPercent, 20)))
-	d.updateTableCell(d.metricsPanel, 3, 0, fmt.Sprintf(" [#585b70]%5.1f%%[white]", metrics.CPUPercent))
+	var content strings.Builder
+	content.WriteString("\n")
 
-	d.updateTableCell(d.metricsPanel, 4, 0, "")
-	d.updateTableCell(d.metricsPanel, 5, 0, " [#f9e2af::b]Memory[white]")
+	// CPU
+	cpuBar := d.fullProgressBar(metrics.CPUPercent, 20)
+	content.WriteString(" [#f9e2af::b]CPU[white]\n")
+	content.WriteString(fmt.Sprintf(" %s\n", cpuBar))
+	content.WriteString(fmt.Sprintf(" [#585b70]%5.1f%%[white]\n\n", metrics.CPUPercent))
+
+	// Memory
 	if metrics.MemoryLimit > 0 {
-		d.updateTableCell(d.metricsPanel, 6, 0, fmt.Sprintf(" %s", d.fullProgressBar(metrics.MemoryPercent, 20)))
-		d.updateTableCell(d.metricsPanel, 7, 0, fmt.Sprintf(" [#585b70]%5.1f%% ─ %s / %s[white]",
+		memBar := d.fullProgressBar(metrics.MemoryPercent, 20)
+		content.WriteString(" [#f9e2af::b]Memory[white]\n")
+		content.WriteString(fmt.Sprintf(" %s\n", memBar))
+		content.WriteString(fmt.Sprintf(" [#585b70]%5.1f%% ─ %s / %s[white]\n\n",
 			metrics.MemoryPercent,
 			components.FormatBytes(metrics.MemoryUsage),
 			components.FormatBytes(metrics.MemoryLimit)))
 	} else {
-		d.updateTableCell(d.metricsPanel, 6, 0, fmt.Sprintf(" [#a6adc8]%s[white]", components.FormatBytes(metrics.MemoryUsage)))
-		d.updateTableCell(d.metricsPanel, 7, 0, "")
+		content.WriteString(" [#f9e2af::b]Memory[white]\n")
+		content.WriteString(fmt.Sprintf(" [#a6adc8]%s[white]\n\n", components.FormatBytes(metrics.MemoryUsage)))
 	}
 
-	d.updateTableCell(d.metricsPanel, 8, 0, "")
-	d.updateTableCell(d.metricsPanel, 9, 0, " [#f9e2af::b]Network[white]")
-	d.updateTableCell(d.metricsPanel, 10, 0, fmt.Sprintf(" [#a6e3a1]↓[white] %s/s", components.FormatBytes(metrics.NetworkIn)))
-	d.updateTableCell(d.metricsPanel, 11, 0, fmt.Sprintf(" [#f38ba8]↑[white] %s/s", components.FormatBytes(metrics.NetworkOut)))
+	// Network
+	if metrics.NetworkIn > 0 || metrics.NetworkOut > 0 {
+		content.WriteString(" [#f9e2af::b]Network[white]\n")
+		content.WriteString(fmt.Sprintf(" [#a6e3a1]↓[white] %s/s\n", components.FormatBytes(metrics.NetworkIn)))
+		content.WriteString(fmt.Sprintf(" [#f38ba8]↑[white] %s/s\n\n", components.FormatBytes(metrics.NetworkOut)))
+	}
 
-	d.updateTableCell(d.metricsPanel, 12, 0, "")
-	d.updateTableCell(d.metricsPanel, 13, 0, " [#f9e2af::b]Disk I/O[white]")
-	d.updateTableCell(d.metricsPanel, 14, 0, fmt.Sprintf(" [#a6e3a1]R:[white] %s", components.FormatBytes(metrics.DiskIORead)))
-	d.updateTableCell(d.metricsPanel, 15, 0, fmt.Sprintf(" [#f38ba8]W:[white] %s", components.FormatBytes(metrics.DiskIOWrite)))
+	// Disk I/O
+	if metrics.DiskIORead > 0 || metrics.DiskIOWrite > 0 {
+		content.WriteString(" [#f9e2af::b]Disk I/O[white]\n")
+		content.WriteString(fmt.Sprintf(" [#a6e3a1]R:[white] %s\n", components.FormatBytes(metrics.DiskIORead)))
+		content.WriteString(fmt.Sprintf(" [#f38ba8]W:[white] %s\n", components.FormatBytes(metrics.DiskIOWrite)))
+	}
+
+	// Update content ONLY - border never touched (only when changed)
+	mt := content.String()
+	if mt != d.lastMetricsText {
+		d.metricsPanel.SetText(mt)
+		d.lastMetricsText = mt
+	}
 }
 
 // updateStatsContent updates ONLY statistics content, never borders
 func (d *ProDashboard) updateStatsContent() {
 	if d.selectedIndex >= len(d.services) || len(d.services) == 0 {
-		d.updateTableCell(d.statsPanel, 0, 0, "[#585b70::i]No service selected[white]")
+		txt := "\n  [#585b70::i]No service selected[white]"
+		if txt != d.lastStatsText {
+			d.statsPanel.SetText(txt)
+			d.lastStatsText = txt
+		}
 		return
 	}
 
 	service := d.services[d.selectedIndex]
 	statsText := FormatStatistics(service)
-	lines := strings.Split(statsText, "\n")
-	for i, line := range lines {
-		d.updateTableCell(d.statsPanel, i, 0, line)
+	// Update content ONLY - border never touched (only when changed)
+	if statsText != d.lastStatsText {
+		d.statsPanel.SetText(statsText)
+		d.lastStatsText = statsText
 	}
 }
 
@@ -403,7 +438,7 @@ func (d *ProDashboard) contentOnlyUpdateLoop() {
 	defer d.updateTicker.Stop()
 
 	for range d.updateTicker.C {
-		d.tviewApp.QueueUpdate(func() {
+		d.tviewApp.QueueUpdateDraw(func() {
 			d.services = d.app.GetServices()
 			d.updateServiceListContent()
 			d.updateDetailsContent()
@@ -420,11 +455,9 @@ func (d *ProDashboard) setupKeyboardHandling() {
 		switch event.Key() {
 		case tcell.KeyUp, tcell.KeyCtrlP:
 			d.navigateUp()
-			d.servicePanel.Select(d.selectedIndex*4, 0)
 			return nil
 		case tcell.KeyDown, tcell.KeyCtrlN:
 			d.navigateDown()
-			d.servicePanel.Select(d.selectedIndex*4, 0)
 			return nil
 		case tcell.KeyEnter:
 			// Service already selected, just refresh details
@@ -510,10 +543,10 @@ func (d *ProDashboard) manualRefresh() {
 	// Show temporary status message
 	originalFooter := d.footerPanel.GetText(false)
 	d.footerPanel.SetText("[#a6e3a1]✨ Refreshed - Values Only[white]")
-	
+
 	go func() {
 		time.Sleep(2 * time.Second)
-		d.tviewApp.QueueUpdate(func() {
+		d.tviewApp.QueueUpdateDraw(func() {
 			d.footerPanel.SetText(originalFooter)
 		})
 	}()

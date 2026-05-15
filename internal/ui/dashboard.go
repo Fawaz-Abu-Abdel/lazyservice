@@ -99,15 +99,20 @@ func (d *Dashboard) populateInitialContent() {
 
 // backgroundDataLoop continuously updates internal data without touching UI
 func (d *Dashboard) backgroundDataLoop() {
-	ticker := time.NewTicker(10 * time.Second) // Reduced frequency
+	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ticker.C:
-			// Only update internal data - never touch UI
+			// Only update internal data
 			d.services = d.app.GetServices()
-			// UI updates only happen on user interaction or manual refresh
+			// Update content-only regions if enabled
+			if d.contentOnly {
+				d.tviewApp.QueueUpdateDraw(func() {
+					d.updateContentOnly()
+				})
+			}
 		}
 	}
 }
